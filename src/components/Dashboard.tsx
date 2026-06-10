@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import type { AppState, BuildDiffResult } from '@/types/app'
 import { runBuildDiff } from '@/lib/buildDiff'
-import { getMockDiffResult } from '@/lib/mockData'
+import { fetchPublicCharacterDetails, fetchCharacterDetails } from '@/lib/gggApi'
 import PassivesTab from '@/components/tabs/PassivesTab'
 import GemsTab     from '@/components/tabs/GemsTab'
 import StatsTab    from '@/components/tabs/StatsTab'
@@ -23,7 +23,7 @@ const SYNC_INTERVAL_MS = 60_000
 
 interface DashboardProps {
   appState:         AppState
-  onSyncComplete:   () => void
+  onSyncComplete:   (updatedChar?: AppState['selectedCharacter']) => void
   onLanguageToggle: () => void
   onLogout:         () => void
 }
@@ -48,18 +48,38 @@ export default function Dashboard({
     setIsSyncing(true)
 
     try {
-      // In production: fetch fresh character data from GGG API, then diff.
-      // Using mock data for development:
-      await new Promise(r => setTimeout(r, 1200))
-      const result = (import.meta.env.MODE === 'development')
-        ? getMockDiffResult()
-        : runBuildDiff(appState.buildFile, appState.selectedCharacter)
+      let updatedChar = { ...appState.selectedCharacter }
+
+      // Fetch fresh data when running inside Tauri or production environment
+      const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
+      if (isTauri || import.meta.env.MODE === 'production') {
+        try {
+          if (appState.syncMode === 'public' && appState.accountName) {
+            updatedChar = await fetchPublicCharacterDetails(appState.accountName, appState.selectedCharacter.name)
+          } else if (
+            appState.syncMode === 'oauth' &&
+            appState.accessToken &&
+            !appState.accessToken.startsWith('mock_')
+          ) {
+            updatedChar = await fetchCharacterDetails(appState.accessToken, appState.selectedCharacter.name)
+          }
+        } catch (e) {
+          console.error('Failed to fetch character during sync, using local data:', e)
+        }
+      } else {
+        // Mock sync delay in web development mode
+        await new Promise(r => setTimeout(r, 1000))
+      }
+
+      const result = runBuildDiff(appState.buildFile, updatedChar)
       setDiffResult(result)
-      onSyncComplete()
+      onSyncComplete(updatedChar)
+    } catch (err) {
+      console.error('Sync diff execution error:', err)
     } finally {
       setIsSyncing(false)
     }
-  }, [appState.buildFile, appState.selectedCharacter, isSyncing, onSyncComplete])
+  }, [appState.buildFile, appState.selectedCharacter, appState.syncMode, appState.accountName, appState.accessToken, isSyncing, onSyncComplete])
 
   // ── Initial sync + periodic auto-sync ───────────────────────────────────
   useEffect(() => {

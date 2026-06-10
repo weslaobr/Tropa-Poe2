@@ -22,6 +22,167 @@ const CLIENT_ID      = import.meta.env.VITE_GGG_CLIENT_ID ?? 'poe2-sync-companio
 const REDIRECT_URI   = 'http://localhost:1420/oauth/callback'
 const SCOPES         = 'account:characters account:items'
 
+// ── CORS-bypassing Fetch Helper ──────────────────────────────────────────────
+
+/**
+ * Fetches data from GGG endpoints.
+ * Bypasses CORS using Tauri's HTTP module when running in the Tauri shell,
+ * otherwise falls back to a standard browser fetch.
+ */
+async function fetchWithTauriOrBrowser<T>(url: string): Promise<T> {
+  const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
+  if (isTauri) {
+    try {
+      const { getClient, ResponseType } = await import('@tauri-apps/api/http')
+      const client = await getClient()
+      const response = await client.get<T>(url, {
+        responseType: ResponseType.JSON,
+        headers: {
+          'User-Agent': 'PoE2SyncCompanion/0.1.0 (contact: your@email.com)',
+        }
+      })
+      
+      const data = response.data
+      if (data && typeof data === 'object' && 'error' in data) {
+        const err = (data as any).error
+        throw new Error(err.message || 'API request failed')
+      }
+      return data
+    } catch (e) {
+      console.warn('Tauri HTTP client failed, falling back to browser fetch:', e)
+    }
+  }
+
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'PoE2SyncCompanion/0.1.0 (contact: your@email.com)',
+    }
+  })
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+  }
+  const data = await response.json()
+  if (data && typeof data === 'object' && 'error' in data) {
+    const err = (data as any).error
+    throw new Error(err.message || 'API request failed')
+  }
+  return data as T
+}
+
+// ── Public Profile Sync Flow ──────────────────────────────────────────────────
+
+/**
+ * Sanitizes and formats the GGG account name.
+ * If the user inputs a name with a trailing hyphen and 4 digits (e.g. WESLAO-8809),
+ * it converts it to the official GGG format (e.g. WESLAO#8809).
+ */
+export function formatAccountName(accountName: string): string {
+  let name = accountName.trim()
+  if (/-\d{4}$/.test(name)) {
+    name = name.replace(/-(\d{4})$/, '#$1')
+  }
+  return name
+}
+
+/**
+ * Fetches the list of characters for a public GGG account name.
+ * Uses the legacy character-window endpoint.
+ */
+export async function fetchPublicCharacters(accountName: string): Promise<GGGCharacter[]> {
+  const formattedAccountName = formatAccountName(accountName)
+  const url = `https://www.pathofexile.com/character-window/get-characters?accountName=${encodeURIComponent(
+    formattedAccountName
+  )}&realm=poe2`
+  try {
+    const data = await fetchWithTauriOrBrowser<any>(url)
+    if (Array.isArray(data)) {
+      return data.map((char: any) => ({
+        name: char.name,
+        class: char.class,
+        league: char.league,
+        level: char.level,
+        experience: char.experience ?? 0,
+      }))
+    } else if (data && data.error) {
+      throw new Error(data.error.message || 'Failed to fetch characters')
+    }
+    throw new Error('Invalid response format or private profile')
+  } catch (e) {
+    throw new Error(
+      `Failed to load characters. Make sure the profile is set to Public and the account name is correct. (Error: ${
+        e instanceof Error ? e.message : e
+      })`
+    )
+  }
+}
+
+/**
+ * Fetches full character details (items/gems and passive tree hashes) for a public account.
+ * Combines results from get-items and get-passive-skills.
+ */
+export async function fetchPublicCharacterDetails(
+  accountName: string,
+  characterName: string,
+): Promise<GGGCharacter> {
+  const formattedAccountName = formatAccountName(accountName)
+  const itemsUrl = `https://www.pathofexile.com/character-window/get-items?accountName=${encodeURIComponent(
+    formattedAccountName
+  )}&character=${encodeURIComponent(characterName)}&realm=poe2`
+  const passivesUrl = `https://www.pathofexile.com/character-window/get-passive-skills?accountName=${encodeURIComponent(
+    formattedAccountName
+  )}&character=${encodeURIComponent(characterName)}&realm=poe2`
+
+  // Fetch both in parallel
+  const [itemsData, passivesData] = await Promise.all([
+    fetchWithTauriOrBrowser<any>(itemsUrl),
+    fetchWithTauriOrBrowser<any>(passivesUrl),
+  ])
+
+  if (itemsData && itemsData.error) {
+    throw new Error(itemsData.error.message || 'Failed to fetch items')
+  }
+  if (passivesData && passivesData.error) {
+    throw new Error(passivesData.error.message || 'Failed to fetch passives')
+  }
+
+  // Parse equipment items (mapped from itemsData.items)
+  const rawItems = itemsData.items ?? []
+  
+  // Extract gems from rawItems
+  const gems: ActiveGem[] = rawItems.flatMap((item: any) =>
+    (item.socketedItems ?? []).map((gem: any) => ({
+      id:          `${item.id}-socket${gem.socket}`,
+      name:        gem.typeLine,
+      level:       extractGemLevel(gem),
+      quality:     extractGemQuality(gem),
+      socketGroup: item.inventoryId,
+      isSupport:   gem.support,
+    }))
+  )
+
+  // Parse passive tree allocated node hashes
+  const passiveHashes = passivesData.hashes ?? []
+  const passives: PassiveNode[] = passiveHashes.map((hash: number) => ({
+    id:        String(hash),
+    name:      `Node #${hash}`,
+    allocated: true,
+    stats:     [],
+  }))
+
+  const charInfo = itemsData.character ?? {}
+
+  return {
+    name:       charInfo.name || characterName,
+    class:      charInfo.class || 'Unknown',
+    league:     charInfo.league || 'Standard',
+    level:      charInfo.level || 1,
+    experience: charInfo.experience || 0,
+    equipment:  [],
+    gems,
+    passives,
+  }
+}
+
 // ── PKCE Helpers ──────────────────────────────────────────────────────────────
 
 /** Generates a cryptographically random code verifier for PKCE */

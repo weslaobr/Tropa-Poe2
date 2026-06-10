@@ -16,7 +16,14 @@
       "authenticating": "Authenticating...",
       "success":        "Successfully authenticated",
       "error":          "Authentication failed. Please try again.",
-      "description":    "Required to access your character data via the official GGG API"
+      "description":    "Required to access your character data via the official GGG API",
+      "modeTitle":      "Synchronization Method",
+      "modeOauth":      "Official GGG Login",
+      "modePublic":     "Public Profile (No login)",
+      "accountLabel":   "GGG Account Name (Username)",
+      "accountPlaceholder": "e.g., weslaobr",
+      "searchButton":   "Fetch Characters",
+      "publicSuccess":  "Account linked successfully"
     },
     "build": {
       "button":       "Load .build File",

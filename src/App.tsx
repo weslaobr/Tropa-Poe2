@@ -18,15 +18,27 @@ function App() {
   const [appState, setAppState] = useState<AppState>({
     isAuthenticated: false,
     accessToken: null,
+    syncMode: 'mock',
+    accountName: null,
     selectedCharacter: null,
     buildFile: null,
     lastSyncAt: null,
     language: 'pt-BR',
   })
 
-  // ── Auth callback (called after OAuth2 success) ─────────────────────────────
-  const handleAuthSuccess = useCallback((token: string) => {
-    setAppState(prev => ({ ...prev, isAuthenticated: true, accessToken: token }))
+  // ── Auth callback (called after OAuth2 success or public profile import) ───
+  const handleAuthSuccess = useCallback((
+    token: string | null,
+    syncMode: AppState['syncMode'],
+    accountName: string | null
+  ) => {
+    setAppState(prev => ({
+      ...prev,
+      isAuthenticated: true,
+      accessToken: token,
+      syncMode,
+      accountName,
+    }))
   }, [])
 
   // ── Build file loaded callback ──────────────────────────────────────────────
@@ -47,8 +59,12 @@ function App() {
   }, [appState.language, i18n])
 
   // ── Sync timestamp updater ──────────────────────────────────────────────────
-  const handleSyncComplete = useCallback(() => {
-    setAppState(prev => ({ ...prev, lastSyncAt: new Date() }))
+  const handleSyncComplete = useCallback((updatedChar?: AppState['selectedCharacter']) => {
+    setAppState(prev => ({
+      ...prev,
+      selectedCharacter: updatedChar ?? prev.selectedCharacter,
+      lastSyncAt: new Date(),
+    }))
   }, [])
 
   return (
@@ -71,6 +87,8 @@ function App() {
               ...prev,
               isAuthenticated: false,
               accessToken: null,
+              syncMode: 'mock',
+              accountName: null,
               selectedCharacter: null,
               buildFile: null,
             }))

@@ -1,23 +1,22 @@
-/**
- * components/LoginScreen.tsx — Authentication & Setup Screen
- *
- * Step-by-step onboarding: GGG OAuth2 → Load .build file → Select character.
- * Shows a premium PoE-themed dark landing with guided steps.
- */
-
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Shield, Upload, ChevronDown, Sword, Loader2,
-  CheckCircle2, AlertCircle, Globe, User,
+  CheckCircle2, AlertCircle, Globe, User, Search,
 } from 'lucide-react'
 import type { AppState, GGGCharacter, BuildFile } from '@/types/app'
 import { parseBuildFile } from '@/lib/buildParser'
 import { MOCK_BUILD_FILE, MOCK_CHARACTER } from '@/lib/mockData'
+import {
+  fetchPublicCharacters,
+  fetchPublicCharacterDetails,
+  fetchCharacterDetails,
+  initiateOAuthFlow,
+} from '@/lib/gggApi'
 
 interface LoginScreenProps {
   appState:             AppState
-  onAuthSuccess:        (token: string) => void
+  onAuthSuccess:        (token: string | null, syncMode: AppState['syncMode'], accountName: string | null) => void
   onBuildLoaded:        (build: BuildFile) => void
   onCharacterSelected:  (char: GGGCharacter) => void
   onLanguageToggle:     () => void
@@ -33,10 +32,13 @@ export default function LoginScreen({
   const { t } = useTranslation()
 
   // ── Local state ────────────────────────────────────────────────────────────
+  const [authMode,          setAuthMode]          = useState<'oauth' | 'public'>('public')
+  const [publicAccountName, setPublicAccountName] = useState<string>('')
   const [isAuthenticating,  setIsAuthenticating]  = useState(false)
   const [authError,         setAuthError]          = useState<string | null>(null)
   const [characters,        setCharacters]          = useState<GGGCharacter[]>([])
   const [isLoadingChars,    setIsLoadingChars]     = useState(false)
+  const [isSelectingChar,   setIsSelectingChar]   = useState(false)
   const [selectedChar,      setSelectedChar]       = useState<string>('')
   const [buildFileName,     setBuildFileName]      = useState<string | null>(null)
   const [buildError,        setBuildError]         = useState<string | null>(null)
@@ -50,24 +52,56 @@ export default function LoginScreen({
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 
-  /** Simulates OAuth2 — in production, opens browser via Tauri shell plugin */
+  /** Official GGG OAuth2 login flow */
   async function handleAuth() {
     setIsAuthenticating(true)
     setAuthError(null)
     try {
-      // MOCK: Simulate OAuth2 delay then succeed
-      await new Promise(r => setTimeout(r, 1800))
-      onAuthSuccess('mock_access_token_' + Date.now())
+      const clientId = import.meta.env.VITE_GGG_CLIENT_ID
+      if (clientId && clientId !== 'your_client_id_here' && clientId !== 'poe2-sync-companion') {
+        const { authUrl, verifier } = await initiateOAuthFlow()
+        
+        sessionStorage.setItem('poe_oauth_verifier', verifier)
+        
+        const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
+        if (isTauri) {
+          const { open } = await import('@tauri-apps/api/shell')
+          await open(authUrl)
+        } else {
+          window.location.href = authUrl
+        }
+        setAuthError("Redirecting to GGG login...")
+      } else {
+        // MOCK: Fallback to mock flow if VITE_GGG_CLIENT_ID isn't configured
+        await new Promise(r => setTimeout(r, 1200))
+        onAuthSuccess('mock_access_token_' + Date.now(), 'oauth', 'MockAccount')
 
-      // After auth, load character list
-      setIsLoadingChars(true)
-      await new Promise(r => setTimeout(r, 800))
-      setCharacters([MOCK_CHARACTER])
-    } catch {
-      setAuthError(t('login.auth.error'))
+        setIsLoadingChars(true)
+        await new Promise(r => setTimeout(r, 600))
+        setCharacters([MOCK_CHARACTER])
+      }
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : t('login.auth.error'))
     } finally {
       setIsAuthenticating(false)
       setIsLoadingChars(false)
+    }
+  }
+
+  /** Public GGG profile importer (uses accountName directly without password) */
+  async function handlePublicImport() {
+    if (!publicAccountName.trim()) return
+    setIsAuthenticating(true)
+    setAuthError(null)
+    try {
+      const chars = await fetchPublicCharacters(publicAccountName.trim())
+      setCharacters(chars)
+      
+      onAuthSuccess(null, 'public', publicAccountName.trim())
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Failed to fetch characters')
+    } finally {
+      setIsAuthenticating(false)
     }
   }
 
@@ -79,12 +113,10 @@ export default function LoginScreen({
 
     try {
       const text = await file.text()
-      // Try JSON parse; if it fails with a real file, use mock for demo
       let build: BuildFile
       try {
         build = parseBuildFile(text, file.name)
       } catch {
-        // If file isn't valid JSON, fall back to mock for UI demonstration
         build = { ...MOCK_BUILD_FILE, fileName: file.name }
       }
       setBuildFileName(file.name)
@@ -93,14 +125,39 @@ export default function LoginScreen({
       setBuildError(err instanceof Error ? err.message : 'Unknown error')
     }
 
-    // Reset input so the same file can be re-selected
     e.target.value = ''
   }
 
-  /** Confirms the character selection */
-  function handleCharacterConfirm(charName: string) {
-    const char = characters.find(c => c.name === charName)
-    if (char) onCharacterSelected(char)
+  /** Confirms character selection and fetches equipment/gems/passives details */
+  async function handleCharacterConfirm(charName: string) {
+    const baseChar = characters.find(c => c.name === charName)
+    if (!baseChar) return
+
+    setIsSelectingChar(true)
+    setBuildError(null)
+    try {
+      let detailedChar: GGGCharacter
+      if (appState.syncMode === 'public') {
+        detailedChar = await fetchPublicCharacterDetails(appState.accountName!, charName)
+      } else {
+        if (appState.accessToken && !appState.accessToken.startsWith('mock_')) {
+          detailedChar = await fetchCharacterDetails(appState.accessToken, charName)
+        } else {
+          detailedChar = {
+            ...MOCK_CHARACTER,
+            name: baseChar.name,
+            class: baseChar.class,
+            level: baseChar.level,
+            league: baseChar.league,
+          }
+        }
+      }
+      onCharacterSelected(detailedChar)
+    } catch (err) {
+      setBuildError(err instanceof Error ? err.message : 'Error loading character details')
+    } finally {
+      setIsSelectingChar(false)
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -155,27 +212,106 @@ export default function LoginScreen({
             completed={step1Done}
           >
             {!step1Done ? (
-              <button
-                id="btn-auth-ggg"
-                onClick={handleAuth}
-                disabled={isAuthenticating}
-                className="w-full btn-primary flex items-center justify-center gap-3"
-              >
-                {isAuthenticating ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" />{t('login.auth.authenticating')}</>
+              <div className="space-y-4">
+                {/* Auth Mode Toggle */}
+                <div className="flex gap-2 bg-poe-bg/50 p-1 rounded-lg border border-poe-border/50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('public')
+                      setAuthError(null)
+                    }}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded transition-all duration-200 ${
+                      authMode === 'public'
+                        ? 'bg-poe-gold text-poe-bg shadow-sm'
+                        : 'text-poe-muted hover:text-poe-text'
+                    }`}
+                  >
+                    {t('login.auth.modePublic')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('oauth')
+                      setAuthError(null)
+                    }}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded transition-all duration-200 ${
+                      authMode === 'oauth'
+                        ? 'bg-poe-gold text-poe-bg shadow-sm'
+                        : 'text-poe-muted hover:text-poe-text'
+                    }`}
+                  >
+                    {t('login.auth.modeOauth')}
+                  </button>
+                </div>
+
+                {authMode === 'public' ? (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-poe-muted font-medium">{t('login.auth.accountLabel')}</label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-poe-muted pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder={t('login.auth.accountPlaceholder')}
+                          value={publicAccountName}
+                          onChange={e => setPublicAccountName(e.target.value)}
+                          disabled={isAuthenticating}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handlePublicImport()
+                          }}
+                          className="w-full select-poe pl-10 py-2"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      id="btn-auth-public"
+                      onClick={handlePublicImport}
+                      disabled={isAuthenticating || !publicAccountName.trim()}
+                      className="w-full btn-primary flex items-center justify-center gap-3"
+                    >
+                      {isAuthenticating ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" />{t('common.loading')}</>
+                      ) : (
+                        <><Search className="w-4 h-4" />{t('login.auth.searchButton')}</>
+                      )}
+                    </button>
+                  </div>
                 ) : (
-                  <><Shield className="w-4 h-4" />{t('login.auth.button')}</>
+                  <button
+                    id="btn-auth-ggg"
+                    onClick={handleAuth}
+                    disabled={isAuthenticating}
+                    className="w-full btn-primary flex items-center justify-center gap-3"
+                  >
+                    {isAuthenticating ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" />{t('login.auth.authenticating')}</>
+                    ) : (
+                      <><Shield className="w-4 h-4" />{t('login.auth.button')}</>
+                    )}
+                  </button>
                 )}
-              </button>
+              </div>
             ) : (
-              <StatusBadge success label={t('login.auth.success')} />
+              <StatusBadge
+                success
+                label={
+                  appState.syncMode === 'public'
+                    ? `${t('login.auth.publicSuccess')}: ${appState.accountName}`
+                    : t('login.auth.success')
+                }
+              />
             )}
             {authError && (
               <p className="mt-2 text-poe-crimson-bright text-sm flex items-center gap-1.5">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />{authError}
               </p>
             )}
-            <p className="mt-2 text-poe-subtle text-xs">{t('login.auth.description')}</p>
+            <p className="mt-2 text-poe-subtle text-xs">
+              {authMode === 'public'
+                ? "Basta digitar seu nome de conta público. Verifique se a aba 'Characters' está pública nas suas configurações de privacidade."
+                : t('login.auth.description')}
+            </p>
           </StepCard>
 
           {/* Step 2: Load build */}
@@ -223,10 +359,10 @@ export default function LoginScreen({
             completed={step3Done}
             locked={!step2Done}
           >
-            {isLoadingChars ? (
+            {isLoadingChars || isSelectingChar ? (
               <div className="flex items-center gap-2 text-poe-muted text-sm">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {t('login.character.loading')}
+                {isSelectingChar ? "Carregando detalhes do personagem..." : t('login.character.loading')}
               </div>
             ) : !step3Done ? (
               <div className="relative">

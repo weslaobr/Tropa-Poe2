@@ -111,6 +111,8 @@ export interface PlannedGem {
 export interface AppState {
   isAuthenticated: boolean
   accessToken: string | null
+  syncMode: 'oauth' | 'public' | 'mock'
+  accountName: string | null
   selectedCharacter: GGGCharacter | null
   buildFile: BuildFile | null
   lastSyncAt: Date | null

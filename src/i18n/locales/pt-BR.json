@@ -16,7 +16,14 @@
       "authenticating": "Autenticando...",
       "success":        "Autenticado com sucesso",
       "error":          "Falha na autenticação. Tente novamente.",
-      "description":    "Necessário para acessar os dados do seu personagem via API oficial da GGG"
+      "description":    "Necessário para acessar os dados do seu personagem via API oficial da GGG",
+      "modeTitle":      "Método de Sincronização",
+      "modeOauth":      "Login Oficial GGG",
+      "modePublic":     "Perfil Público (Sem senha)",
+      "accountLabel":   "Conta GGG (Nome de Usuário)",
+      "accountPlaceholder": "ex: weslaobr",
+      "searchButton":   "Buscar Personagens",
+      "publicSuccess":  "Conta vinculada com sucesso"
     },
     "build": {
       "button":       "Carregar Arquivo .build",
