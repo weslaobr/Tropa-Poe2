@@ -89,8 +89,10 @@ export function formatAccountName(accountName: string): string {
  * Uses the legacy character-window endpoint.
  */
 export async function fetchPublicCharacters(accountName: string): Promise<GGGCharacter[]> {
+  const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
+  const apiBase = isTauri ? 'https://www.pathofexile.com' : ''
   const formattedAccountName = formatAccountName(accountName)
-  const url = `https://www.pathofexile.com/character-window/get-characters?accountName=${encodeURIComponent(
+  const url = `${apiBase}/character-window/get-characters?accountName=${encodeURIComponent(
     formattedAccountName
   )}&realm=poe2`
   try {
@@ -124,11 +126,13 @@ export async function fetchPublicCharacterDetails(
   accountName: string,
   characterName: string,
 ): Promise<GGGCharacter> {
+  const isTauri = typeof window !== 'undefined' && '__TAURI__' in window
+  const apiBase = isTauri ? 'https://www.pathofexile.com' : ''
   const formattedAccountName = formatAccountName(accountName)
-  const itemsUrl = `https://www.pathofexile.com/character-window/get-items?accountName=${encodeURIComponent(
+  const itemsUrl = `${apiBase}/character-window/get-items?accountName=${encodeURIComponent(
     formattedAccountName
   )}&character=${encodeURIComponent(characterName)}&realm=poe2`
-  const passivesUrl = `https://www.pathofexile.com/character-window/get-passive-skills?accountName=${encodeURIComponent(
+  const passivesUrl = `${apiBase}/character-window/get-passive-skills?accountName=${encodeURIComponent(
     formattedAccountName
   )}&character=${encodeURIComponent(characterName)}&realm=poe2`
 
