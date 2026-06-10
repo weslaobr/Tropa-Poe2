@@ -1,0 +1,125 @@
+{
+  "app": {
+    "title": "PoE2 SyncCompanion",
+    "tagline": "Rastreamento de Build em Tempo Real",
+    "version": "v0.1.0"
+  },
+  "language": {
+    "toggle": "EN",
+    "current": "Português (BR)"
+  },
+  "login": {
+    "title": "Bem-vindo",
+    "subtitle": "Conecte sua conta e carregue seu guia de build para começar",
+    "auth": {
+      "button":         "Autenticar com GGG",
+      "authenticating": "Autenticando...",
+      "success":        "Autenticado com sucesso",
+      "error":          "Falha na autenticação. Tente novamente.",
+      "description":    "Necessário para acessar os dados do seu personagem via API oficial da GGG"
+    },
+    "build": {
+      "button":       "Carregar Arquivo .build",
+      "loaded":       "Build carregada:",
+      "description":  "Arquivo de build exportado do seu planejador favorito (Path of Building, etc.)"
+    },
+    "character": {
+      "label":       "Selecionar Personagem",
+      "placeholder": "— Escolha um personagem —",
+      "loading":     "Carregando personagens...",
+      "error":       "Erro ao carregar personagens"
+    },
+    "start": {
+      "button": "Iniciar Rastreamento",
+      "hint":   "Complete as etapas acima para continuar"
+    },
+    "steps": {
+      "one":   "1. Autenticar conta GGG",
+      "two":   "2. Carregar arquivo .build",
+      "three": "3. Selecionar personagem"
+    }
+  },
+  "dashboard": {
+    "header": {
+      "sync":     "Sincronizar",
+      "syncing":  "Sincronizando...",
+      "lastSync": "Última sync:",
+      "logout":   "Sair",
+      "never":    "Nunca"
+    },
+    "progress": {
+      "title":    "Progresso Geral da Build",
+      "complete": "concluída"
+    },
+    "tabs": {
+      "passives": "Árvore de Passivas",
+      "gems":     "Gemas e Links",
+      "stats":    "Atributos e Status"
+    },
+    "passives": {
+      "title":             "Próximos Nós Recomendados",
+      "subtitle":          "Baseado no seu nível atual, aloque estes nós em seguida:",
+      "allocated":         "Alocados",
+      "total":             "Total Planejado",
+      "progress":          "Progresso da Árvore",
+      "nextUp":            "Próximos a Alocar",
+      "noNext":            "Todos os nós recomendados para este nível foram alocados!",
+      "stats":             "Bônus",
+      "nodeStatus_done":   "Concluído",
+      "nodeStatus_next":   "Próximo",
+      "nodeStatus_later":  "Futuro"
+    },
+    "gems": {
+      "title":          "Comparação de Gemas",
+      "subtitle":       "Verifica as gemas equipadas vs. as recomendadas pela build",
+      "current":        "Atual",
+      "required":       "Requerido",
+      "missing":        "Faltando",
+      "ok":             "OK",
+      "underleveled":   "Nível Baixo",
+      "level":          "Nível",
+      "quality":        "Qualidade",
+      "support":        "Suporte",
+      "active":         "Ativa",
+      "levelDeficit":   "{{count}} nível(is) abaixo"
+    },
+    "stats": {
+      "title":       "Atributos e Resistências",
+      "subtitle":    "Compara seus status atuais com os requerimentos da build",
+      "current":     "Atual",
+      "target":      "Meta",
+      "delta":       "Diferença",
+      "surplus":     "Excedente",
+      "deficit":     "Déficit",
+      "met":         "Atingido",
+      "attributes":  "Atributos Primários",
+      "defenses":    "Defesas",
+      "resistances": "Resistências",
+      "stats": {
+        "strength":         "Força",
+        "dexterity":        "Destreza",
+        "intelligence":     "Inteligência",
+        "life":             "Vida",
+        "mana":             "Mana",
+        "energyShield":     "Escudo de Energia",
+        "resistFire":       "Resist. ao Fogo",
+        "resistCold":       "Resist. ao Frio",
+        "resistLightning":  "Resist. ao Raio",
+        "resistChaos":      "Resist. ao Caos",
+        "dps":              "DPS"
+      }
+    }
+  },
+  "common": {
+    "loading":   "Carregando...",
+    "error":     "Erro",
+    "success":   "Sucesso",
+    "cancel":    "Cancelar",
+    "confirm":   "Confirmar",
+    "close":     "Fechar",
+    "level":     "Nível",
+    "character": "Personagem",
+    "class":     "Classe",
+    "league":    "Liga"
+  }
+}
