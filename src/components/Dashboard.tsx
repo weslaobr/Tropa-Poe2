@@ -19,7 +19,7 @@ import PassivesTab from '@/components/tabs/PassivesTab'
 import GemsTab     from '@/components/tabs/GemsTab'
 import StatsTab    from '@/components/tabs/StatsTab'
 
-const SYNC_INTERVAL_MS = 60_000
+const SYNC_INTERVAL_MS = 300_000 // 5 minutos
 
 interface DashboardProps {
   appState:         AppState
