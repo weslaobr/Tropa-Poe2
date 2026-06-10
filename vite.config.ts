@@ -15,6 +15,15 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    proxy: {
+      '/character-window': {
+        target: 'https://www.pathofexile.com',
+        changeOrigin: true,
+        headers: {
+          'User-Agent': 'PoE2SyncCompanion/0.1.0 (contact: your@email.com)',
+        }
+      }
+    }
   },
   envPrefix: ['VITE_', 'TAURI_'],
   build: {
