@@ -8,7 +8,7 @@
  * Docs: https://www.pathofexile.com/developer/docs
  */
 
-import type { GGGCharacter, ActiveGem, PassiveNode } from '@/types/app'
+import type { GGGCharacter, ActiveGem, PassiveNode, GGGItem, ItemSlot } from '@/types/app'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -151,6 +151,24 @@ export async function fetchPublicCharacterDetails(
 
   // Parse equipment items (mapped from itemsData.items)
   const rawItems = itemsData.items ?? []
+
+  const equipment: GGGItem[] = rawItems
+    .map((item: any) => {
+      const slot = mapInventoryIdToSlot(item.inventoryId)
+      if (!slot) return null
+      return {
+        id:           item.id,
+        name:         item.name || '',
+        typeLine:     item.typeLine || '',
+        slot,
+        identified:   !!item.identified,
+        ilvl:         item.ilvl ?? 0,
+        explicitMods: item.explicitMods ?? [],
+        implicitMods: item.implicitMods ?? [],
+        frameType:    item.frameType ?? 0,
+      }
+    })
+    .filter(Boolean) as GGGItem[]
   
   // Extract gems from rawItems
   const gems: ActiveGem[] = rawItems.flatMap((item: any) =>
@@ -181,7 +199,7 @@ export async function fetchPublicCharacterDetails(
     league:     charInfo.league || 'Standard',
     level:      charInfo.level || 1,
     experience: charInfo.experience || 0,
-    equipment:  [],
+    equipment,
     gems,
     passives,
   }
@@ -316,6 +334,9 @@ export async function fetchCharacterDetails(
     identified: boolean
     ilvl: number
     inventoryId: string
+    explicitMods?: string[]
+    implicitMods?: string[]
+    frameType?: number
     socketedItems?: RawSocketedGem[]
   }
 
@@ -327,6 +348,24 @@ export async function fetchCharacterDetails(
   }
 
   const raw = await apiFetch<RawCharacter>(`/character/${encodeURIComponent(characterName)}`, token)
+
+  const equipment: GGGItem[] = (raw.equipment ?? [])
+    .map((item: RawItem) => {
+      const slot = mapInventoryIdToSlot(item.inventoryId)
+      if (!slot) return null
+      return {
+        id:           item.id,
+        name:         item.name || '',
+        typeLine:     item.typeLine || '',
+        slot,
+        identified:   !!item.identified,
+        ilvl:         item.ilvl ?? 0,
+        explicitMods: item.explicitMods ?? [],
+        implicitMods: item.implicitMods ?? [],
+        frameType:    item.frameType ?? 0,
+      }
+    })
+    .filter(Boolean) as GGGItem[]
 
   // Flatten socketed gems from all equipment slots
   const gems: ActiveGem[] = (raw.equipment ?? []).flatMap(item =>
@@ -354,7 +393,7 @@ export async function fetchCharacterDetails(
     league:     raw.league,
     level:      raw.level,
     experience: raw.experience,
-    equipment:  [],   // Raw equipment items stripped — stat derivation happens in buildDiff
+    equipment,
     gems,
     passives,
   }
@@ -374,4 +413,20 @@ function extractGemQuality(gem: { properties?: { name: string; values: [string, 
   if (!qualProp) return 0
   const val = String(qualProp.values[0]?.[0] ?? '0').replace('%', '')
   return parseInt(val, 10) || 0
+}
+
+function mapInventoryIdToSlot(invId: string): ItemSlot | null {
+  if (invId === 'Helm') return 'Helm'
+  if (invId === 'Amulet') return 'Amulet'
+  if (invId === 'BodyArmour') return 'Chest'
+  if (invId === 'Gloves') return 'Gloves'
+  if (invId === 'Boots') return 'Boots'
+  if (invId === 'Ring1') return 'Ring'
+  if (invId === 'Ring2') return 'Ring2'
+  if (invId === 'Belt') return 'Belt'
+  if (invId === 'Weapon') return 'Weapon'
+  if (invId === 'Offhand') return 'Offhand'
+  if (invId === 'Trinket') return 'Trinket'
+  if (invId && invId.startsWith('Flask')) return 'Flask'
+  return null
 }

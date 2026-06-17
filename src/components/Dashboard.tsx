@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   RefreshCw, LogOut, Globe, Sword, GitCompare,
-  Network, Gem, BarChart3,
+  Network, Gem, BarChart3, ShoppingBag,
 } from 'lucide-react'
 import type { AppState, BuildDiffResult } from '@/types/app'
 import { runBuildDiff } from '@/lib/buildDiff'
@@ -18,6 +18,7 @@ import { fetchPublicCharacterDetails, fetchCharacterDetails } from '@/lib/gggApi
 import PassivesTab from '@/components/tabs/PassivesTab'
 import GemsTab     from '@/components/tabs/GemsTab'
 import StatsTab    from '@/components/tabs/StatsTab'
+import TradeTab    from '@/components/tabs/TradeTab'
 
 const SYNC_INTERVAL_MS = 300_000 // 5 minutos
 
@@ -28,7 +29,7 @@ interface DashboardProps {
   onLogout:         () => void
 }
 
-type Tab = 'passives' | 'gems' | 'stats'
+type Tab = 'passives' | 'gems' | 'stats' | 'trade'
 
 export default function Dashboard({
   appState,
@@ -91,9 +92,10 @@ export default function Dashboard({
 
   // ── Tab definitions ───────────────────────────────────────────────────────
   const tabs = [
-    { id: 'passives' as Tab, label: t('dashboard.tabs.passives'), Icon: Network    },
-    { id: 'gems'     as Tab, label: t('dashboard.tabs.gems'),     Icon: Gem        },
-    { id: 'stats'    as Tab, label: t('dashboard.tabs.stats'),    Icon: BarChart3  },
+    { id: 'passives' as Tab, label: t('dashboard.tabs.passives'), Icon: Network     },
+    { id: 'gems'     as Tab, label: t('dashboard.tabs.gems'),     Icon: Gem         },
+    { id: 'stats'    as Tab, label: t('dashboard.tabs.stats'),    Icon: BarChart3   },
+    { id: 'trade'    as Tab, label: t('dashboard.tabs.trade'),    Icon: ShoppingBag },
   ]
 
   const char  = appState.selectedCharacter!
@@ -270,6 +272,9 @@ export default function Dashboard({
               )}
               {activeTab === 'stats' && (
                 <StatsTab diff={diffResult.statDiff} characterLevel={char.level} />
+              )}
+              {activeTab === 'trade' && (
+                <TradeTab />
               )}
             </>
           )}

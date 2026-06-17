@@ -30,6 +30,7 @@ export interface GGGItem {
   requirements?: { name: string; value: number }[]
   explicitMods?: string[]
   implicitMods?: string[]
+  frameType?: number     // PoE item rarity frame type (0=Normal, 1=Magic, 2=Rare, 3=Unique, etc.)
 }
 
 export type ItemSlot =

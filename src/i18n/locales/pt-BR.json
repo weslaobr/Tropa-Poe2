@@ -61,7 +61,8 @@
     "tabs": {
       "passives": "Árvore de Passivas",
       "gems":     "Gemas e Links",
-      "stats":    "Atributos e Status"
+      "stats":    "Atributos e Status",
+      "trade":    "Busca no Mercado"
     },
     "passives": {
       "title":             "Próximos Nós Recomendados",

@@ -61,7 +61,8 @@
     "tabs": {
       "passives": "Passive Tree",
       "gems":     "Gems & Links",
-      "stats":    "Attributes & Stats"
+      "stats":    "Attributes & Stats",
+      "trade":    "Trade Search"
     },
     "passives": {
       "title":             "Next Recommended Nodes",
