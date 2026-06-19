@@ -7,8 +7,10 @@
 
 import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Sword, ArrowLeft } from 'lucide-react'
 import LoginScreen from '@/components/LoginScreen'
 import Dashboard from '@/components/Dashboard'
+import BuildCompareTab from '@/components/tabs/BuildCompareTab'
 import type { AppState } from '@/types/app'
 
 function App() {
@@ -25,6 +27,8 @@ function App() {
     lastSyncAt: null,
     language: 'pt-BR',
   })
+
+  const [showCompare, setShowCompare] = useState(false)
 
   // ── Auth callback (called after OAuth2 success or public profile import) ───
   const handleAuthSuccess = useCallback((
@@ -67,6 +71,31 @@ function App() {
     }))
   }, [])
 
+  if (showCompare) {
+    return (
+      <div className="min-h-screen bg-poe-bg flex flex-col">
+        <header className="flex items-center justify-between px-8 py-5 border-b border-poe-border">
+          <div className="flex items-center gap-3">
+            <Sword className="w-7 h-7 text-poe-gold" />
+            <span className="font-display text-poe-gold text-xl tracking-widest">PoE2 SyncCompanion</span>
+          </div>
+          <button
+            onClick={() => setShowCompare(false)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-poe-border text-poe-muted hover:text-poe-text hover:border-poe-gold/40 transition-all duration-200 text-sm"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {i18n.language === 'pt-BR' ? 'Voltar' : 'Back'}
+          </button>
+        </header>
+        <main className="flex-1 overflow-auto">
+          <div className="max-w-4xl mx-auto px-6 py-6">
+            <BuildCompareTab />
+          </div>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="app-root">
       {!appState.isAuthenticated || !appState.buildFile || !appState.selectedCharacter ? (
@@ -76,6 +105,7 @@ function App() {
           onBuildLoaded={handleBuildLoaded}
           onCharacterSelected={handleCharacterSelected}
           onLanguageToggle={handleLanguageToggle}
+          onOpenCompare={() => setShowCompare(true)}
         />
       ) : (
         <Dashboard

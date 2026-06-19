@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Shield, Upload, ChevronDown, Sword, Loader2,
-  CheckCircle2, AlertCircle, Globe, User, Search,
+  CheckCircle2, AlertCircle, Globe, User, Search, GitCompare,
 } from 'lucide-react'
 import type { AppState, GGGCharacter, BuildFile } from '@/types/app'
 import { parseBuildFile } from '@/lib/buildParser'
@@ -20,6 +20,7 @@ interface LoginScreenProps {
   onBuildLoaded:        (build: BuildFile) => void
   onCharacterSelected:  (char: GGGCharacter) => void
   onLanguageToggle:     () => void
+  onOpenCompare:        () => void
 }
 
 export default function LoginScreen({
@@ -28,6 +29,7 @@ export default function LoginScreen({
   onBuildLoaded,
   onCharacterSelected,
   onLanguageToggle,
+  onOpenCompare,
 }: LoginScreenProps) {
   const { t } = useTranslation()
 
@@ -202,6 +204,15 @@ export default function LoginScreen({
         <p className="text-poe-muted text-center max-w-md mb-12 leading-relaxed">
           {t('login.subtitle')}
         </p>
+
+        {/* ── Compare Builds button ── */}
+        <button
+          onClick={onOpenCompare}
+          className="w-full max-w-lg mb-4 btn-secondary flex items-center justify-center gap-3 py-3 border-poe-gold/30 hover:border-poe-gold/60"
+        >
+          <GitCompare className="w-5 h-5 text-poe-gold" />
+          <span className="text-poe-gold font-semibold">{t('login.compareBuilds')}</span>
+        </button>
 
         {/* ── Steps card ── */}
         <div className="w-full max-w-lg space-y-4">

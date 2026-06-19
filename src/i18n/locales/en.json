@@ -40,6 +40,7 @@
       "button": "Start Tracking",
       "hint":   "Complete the steps above to continue"
     },
+    "compareBuilds": "Compare Builds (no login)",
     "steps": {
       "one":   "1. Authenticate GGG account",
       "two":   "2. Load .build file",
@@ -62,7 +63,9 @@
       "passives": "Passive Tree",
       "gems":     "Gems & Links",
       "stats":    "Attributes & Stats",
-      "trade":    "Trade Search"
+      "trade":    "Trade Search",
+      "equipment": "Equipment",
+      "compare":  "Build Compare"
     },
     "passives": {
       "title":             "Next Recommended Nodes",

@@ -40,6 +40,7 @@
       "button": "Iniciar Rastreamento",
       "hint":   "Complete as etapas acima para continuar"
     },
+    "compareBuilds": "Comparar Builds (sem login)",
     "steps": {
       "one":   "1. Autenticar conta GGG",
       "two":   "2. Carregar arquivo .build",
@@ -62,7 +63,9 @@
       "passives": "Árvore de Passivas",
       "gems":     "Gemas e Links",
       "stats":    "Atributos e Status",
-      "trade":    "Busca no Mercado"
+      "trade":    "Busca no Mercado",
+      "equipment": "Equipamentos",
+      "compare":  "Comparar Builds"
     },
     "passives": {
       "title":             "Próximos Nós Recomendados",
