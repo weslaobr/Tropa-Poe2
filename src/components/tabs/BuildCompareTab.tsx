@@ -1,32 +1,7 @@
 import { useState, useRef } from 'react'
 import { Upload, GitCompare, ChevronDown, ChevronUp, Check, X, AlertCircle, FileText, Shield, Zap, BookOpen, Layers, Sword } from 'lucide-react'
 import { parsePoeNinjaBuild, compareBuilds, type BuildCompareResult } from '@/lib/buildCompare'
-
-function passiveDisplayName(id: string): string {
-  const known: Record<string, string> = {
-    'passive_keystone_elemental_equilibrium': 'Elemental Equilibrium',
-    'passive_keystone_blood_magic': 'Blood Magic',
-    'passive_keystone_chaos_inoculation': 'Chaos Inoculation',
-    'passive_keystone_eldritch_battery': 'Eldritch Battery',
-    'passive_keystone_ghost_reaver': 'Ghost Reaver',
-    'passive_keystone_iron_grip': 'Iron Grip',
-    'passive_keystone_iron_reflexes': 'Iron Reflexes',
-    'passive_keystone_iron_will': 'Iron Will',
-    'passive_keystone_minion_instability': 'Minion Instability',
-    'passive_keystone_necrotic_aegis': 'Necrotic Aegis',
-    'passive_keystone_nullification': 'Nullification',
-    'passive_keystone_pain_attunement': 'Pain Attunement',
-    'passive_keystone_point_blank': 'Point Blank',
-    'passive_keystone_resolute_technique': 'Resolute Technique',
-    'passive_keystone_unwavering_stance': 'Unwavering Stance',
-    'passive_keystone_vaal_pact': 'Vaal Pact',
-    'passive_keystone_zealots_oath': 'Zealot\'s Oath',
-  }
-  if (known[id]) return known[id]
-  if (id.startsWith('jewel_slot')) return 'Jewel Socket'
-  if (id.startsWith('Ascendancy')) return id.replace(/Ascendancy/, '').replace(/([A-Z])/g, ' $1').trim()
-  return id
-}
+import { passiveDisplayName } from '@/lib/passiveNames'
 
 interface PassiveSection {
   id: string
