@@ -14,6 +14,111 @@ const POSITIVE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const GEM_INDEX_PAGES = ['Skill_Gems', 'Support_Gems'];
 const GEM_INDEX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+export const CATALOG_PAGES = [
+  'Body_Armours',
+  'Helmets',
+  'Gloves',
+  'Boots',
+  'Belts',
+  'Rings',
+  'Amulets',
+  'Charms',
+  'Jewels',
+  'Talismans',
+  'Swords',
+  'Axes',
+  'Maces',
+  'Flails',
+  'Spears',
+  'Bows',
+  'Crossbows',
+  'Quarterstaves',
+  'Wands',
+  'Sceptres',
+  'Shields',
+  'Foci',
+];
+
+const ANCHOR_ICON_RE =
+  /<a[^>]*href="([^"]+)"[^>]*>\s*<img[^>]+src="(https:\/\/cdn\.poe2db\.tw\/image\/[^"]+)"/g;
+
+function hrefToName(href: string): string {
+  const stripped = href.replace(/^\/?(?:us\/)?/, '');
+  let decoded = stripped;
+  try {
+    decoded = decodeURIComponent(stripped);
+  } catch {
+    /* slug com encoding invalido: usa cru */
+  }
+  return decoded.replace(/_/g, ' ').trim();
+}
+
+function parseAnchorIconPairs(html: string): Array<[string, string]> {
+  const pairs: Array<[string, string]> = [];
+  for (const match of html.matchAll(ANCHOR_ICON_RE)) {
+    const name = hrefToName(match[1]);
+    const icon = match[2];
+    if (
+      !name ||
+      name.includes('/') ||
+      !/^[A-Za-z0-9' \-.,%:]+$/.test(name) ||
+      !/\/Art\/(2DItems|2DArt)\//.test(icon)
+    ) {
+      continue;
+    }
+    pairs.push([name, icon]);
+  }
+  return pairs;
+}
+
+function tokenize(value: string): Set<string> {
+  return new Set(
+    value
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length > 1),
+  );
+}
+
+function pickBestIcon(name: string, icons: string[]): string {
+  if (icons.length === 1) return icons[0];
+
+  const nameTokens = tokenize(name);
+  let best = icons[0];
+  let bestScore = -1;
+
+  for (const icon of icons) {
+    const basename = icon.split('/').pop()?.replace(/\.webp$/, '') ?? '';
+    const artTokens = tokenize(basename);
+    let score = 0;
+    for (const token of nameTokens) {
+      if (artTokens.has(token)) score += 1;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = icon;
+    }
+  }
+
+  return best;
+}
+
+function groupAndPick(pairs: Array<[string, string]>): Record<string, string> {
+  const occurrences = new Map<string, string[]>();
+  for (const [name, icon] of pairs) {
+    const list = occurrences.get(name);
+    if (list) list.push(icon);
+    else occurrences.set(name, [icon]);
+  }
+
+  const entries: Record<string, string> = {};
+  for (const [name, icons] of occurrences) {
+    entries[name] = pickBestIcon(name, icons);
+  }
+  return entries;
+}
+
 interface CacheEntry {
   url: string | null;
   at: number;
@@ -71,9 +176,6 @@ function stripPoBJunk(name: string): string {
     .trim();
 }
 
-const ANCHOR_ICON_PATTERN =
-  '<a[^>]+href="(/us/[A-Za-z0-9_%]+)"[^>]*>\\s*<img[^>]+src="(https://cdn\\.poe2db\\.tw/image/[^"]+)"';
-
 async function fetchPageHtml(url: string): Promise<string | null> {
   const response = await fetch(url, {
     headers: {
@@ -107,23 +209,18 @@ async function loadGemIndex(): Promise<Map<string, string>> {
     /* sem indice em disco */
   }
 
-  const entries: Record<string, string> = {};
+  const pairs: Array<[string, string]> = [];
   for (const page of GEM_INDEX_PAGES) {
     try {
       await sleep(REQUEST_GAP_MS);
       const html = await fetchPageHtml(`${POE2DB_PAGE_BASE}/${page}`);
       if (!html) continue;
-      const pattern = new RegExp(ANCHOR_ICON_PATTERN, 'g');
-      for (const match of html.matchAll(pattern)) {
-        const slug = decodeURIComponent(match[1].slice(4)).replace(/_/g, ' ');
-        const icon = match[2];
-        if (!slug || !icon) continue;
-        entries[slug] = icon;
-      }
+      pairs.push(...parseAnchorIconPairs(html));
     } catch {
       continue;
     }
   }
+  const entries = groupAndPick(pairs);
 
   if (Object.keys(entries).length === 0) {
     gemIndex = gemIndex ?? new Map();
@@ -155,6 +252,72 @@ function getCachedGemIndex(): Promise<Map<string, string>> {
     gemIndexPromise = loadGemIndex().catch(() => new Map<string, string>());
   }
   return gemIndexPromise;
+}
+
+const CATALOG_FILE = path.join(DISK_CACHE_DIR, 'poe2db-catalog.json');
+
+let catalogMap: Map<string, string> | null = null;
+
+function buildLookupIndex(entries: Record<string, string>): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const [displayName, icon] of Object.entries(entries)) {
+    const key = normalizeKey(stripPoBJunk(displayName));
+    map.set(key, icon);
+    map.set(`support${key}`, icon);
+    map.set(`vaal${key}`, icon);
+    const singular = key.replace(/s$/, '');
+    if (singular !== key) {
+      map.set(singular, icon);
+      map.set(`support${singular}`, icon);
+      map.set(`vaal${singular}`, icon);
+    }
+  }
+  return map;
+}
+
+async function loadCatalog(): Promise<Map<string, string>> {
+  if (catalogMap) return catalogMap;
+  try {
+    const raw = await readFile(CATALOG_FILE, 'utf8');
+    const payload = JSON.parse(raw) as GemIndexPayload;
+    if (payload.entries) catalogMap = buildLookupIndex(payload.entries);
+  } catch {
+    /* sem catalogo em disco: roda npm run sync:icons */
+  }
+  return catalogMap ?? new Map();
+}
+
+export async function syncIconCatalog(): Promise<{ pages: number; entries: number }> {
+  const pairs: Array<[string, string]> = [];
+  let pages = 0;
+
+  for (const page of [...CATALOG_PAGES, ...GEM_INDEX_PAGES]) {
+    await sleep(REQUEST_GAP_MS);
+    try {
+      const html = await fetchPageHtml(`${POE2DB_PAGE_BASE}/${page}`);
+      if (!html) continue;
+      const pagePairs = parseAnchorIconPairs(html);
+      if (pagePairs.length > 0) {
+        pages += 1;
+        pairs.push(...pagePairs);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  const entries = groupAndPick(pairs);
+  const total = Object.keys(entries).length;
+  if (total === 0) return { pages: 0, entries: 0 };
+
+  await mkdir(DISK_CACHE_DIR, { recursive: true });
+  await writeFile(
+    CATALOG_FILE,
+    JSON.stringify({ at: Date.now(), entries } satisfies GemIndexPayload),
+    'utf8',
+  );
+  catalogMap = buildLookupIndex(entries);
+  return { pages, entries: total };
 }
 
 const OG_IMAGE_PATTERNS = [
@@ -210,6 +373,14 @@ async function resolveViaPageScrape(name: string): Promise<string | null> {
 
 async function resolveOne(name: string): Promise<string | null> {
   const stripped = stripPoBJunk(name.trim());
+
+  const catalog = await loadCatalog();
+  for (const candidate of slugCandidates(name)) {
+    const key = normalizeKey(candidate);
+    const hit = catalog.get(key) ?? catalog.get(key.replace(/s$/, ''));
+    if (hit) return hit;
+  }
+
   const index = await getCachedGemIndex();
 
   const directKeys = [

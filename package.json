@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:parser": "tsx scripts/smoke-pob.ts"
+    "test:parser": "tsx scripts/smoke-pob.ts",
+    "sync:icons": "tsx scripts/sync-icon-catalog.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",
