@@ -1,27 +1,41 @@
+# dependencies
 node_modules/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# production
+build/
 dist/
+
+# env
 .env
 .env.local
 .env.*.local
 
-# Rust / Tauri
-src-tauri/target/
-Cargo.lock
+# vercel
+.vercel
 
-# IDE
+# typescript
+*.tsbuildinfo
+
+# ide
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# os
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Logs
+# logs
 *.log
 npm-debug.log*
 
-# Build artifacts
-*.tsbuildinfo
+
+# cache local de icones poe2db
+.cache/

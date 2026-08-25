@@ -1,133 +1,111 @@
-# PoE2 SyncCompanion
+# Tropa PoE2 Ecosystem
 
-> **Open-source, ultra-lightweight Path of Exile 2 build tracking companion**  
-> Built with Tauri + React + TypeScript + Tailwind CSS
-
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)
-
----
-
-## Features
-
-- 🔑 **OAuth2 Authentication** — Connects to your GGG account securely (PKCE flow, no client secret stored)
-- 📂 **Build File Loader** — Parses `.build` files from Path of Building and similar tools
-- 📊 **Passive Tree Progress** — Shows next recommended nodes based on your current level
-- 💎 **Gem Comparison** — Highlights missing gems and underleveled support links
-- ⚔️ **Stat Comparison** — Compares your current attributes and resistances vs. build targets
-- 🔄 **Auto-Sync** — Syncs with the GGG API every 60 seconds (or manually)
-- 🌐 **i18n** — Full PT-BR / English interface (game terms stay in English)
-- 🪶 **Ultra-lightweight** — Tauri binary < 5MB, runtime < 20MB RAM
+> **Web app de alta performance para otimização de builds, upgrades no Trade, análise de Tablets/Mapas e guia dinâmico de leveling — Path of Exile 2**
+>
+> Interface ultrafluida, carregamento instantâneo, feita para o segundo monitor.
 
 ---
 
 ## Stack
 
-| Layer     | Technology                          |
-|-----------|-------------------------------------|
-| Desktop   | Tauri 1.x (Rust)                    |
-| Frontend  | React 18 + TypeScript               |
-| Styling   | Tailwind CSS 3 (PoE dark theme)     |
-| Icons     | Lucide React                        |
-| i18n      | i18next + react-i18next             |
-| Build     | Vite 5                              |
+| Camada        | Tecnologia                                        |
+|---------------|---------------------------------------------------|
+| Frontend      | Next.js (App Router) · React 19 · TypeScript     |
+| Estilo        | Tailwind CSS 3 (tema PoE: dourado/carmim/sombra) |
+| Parser Engine | Node.js + `fast-xml-parser` + `node:zlib`         |
+| Cache/APIs    | Redis + Trade API (planejado v1.5)                |
 
----
+```
+[Frontend - Next.js / Tailwind]
+              │
+              ▼
+[API Layer - Route Handlers] ───► [PoB Parser / Zlib Engine]
+              │
+              ├───► [PoE 2 Official Trade API]   (v1.5)
+              ├───► [PoE Ninja API]              (v1.5)
+              └───► [PostgreSQL / Redis Cache]   (v2.0)
+```
 
-## Getting Started
+## Roadmap
 
-### Prerequisites
+### ✅ v1.0 — MVP (Core & Importação)
 
-- [Node.js](https://nodejs.org/) ≥ 18
-- [Rust](https://rustup.rs/) (stable toolchain)
-- [Tauri CLI prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites/)
+- **Importador PoB/PoE Ninja** — cole o código comprimido (Base64 URL-safe + Zlib); o Route Handler `/api/import` infla o XML e converte em JSON tipado.
+- **Dashboard do personagem** (`/build/[id]`) — DPS efetivo, vida/ES/mana, cap de resistências com alerta visual, equipamentos, gems/suportes e link da árvore passiva.
+- **Calculadora de Upgrades** (`/trade-calc`) — comparação manual de 2 itens com variação percentual por atributo.
 
-### Development
+### 🔜 v1.5 — Módulo Trade & Otimizador
+
+- Integração com a **API oficial do Trade** buscando os status que faltam na build.
+- Métrica de eficiência **DPS/Orb** dos listings.
+- **Tablet & Map Analyzer** — heurística inicial já implementada em `src/lib/map-evaluator.ts` (alertas para reflect, res máx reduzida, recovery reduzido etc.).
+
+### 🔮 v2.0 — Leveling Assist & Ecossistema
+
+- Guia de atos dinâmico com checklist de passivas e gems por NPC.
+- **Tropa Cloud**: login via Discord, histórico de builds e comparativos da comunidade.
+
+## Estrutura
+
+```text
+tropa-poe2/
+├── src/
+│   ├── app/
+│   │   ├── api/import/route.ts   # POST /api/import — PoB Parser / Zlib Engine
+│   │   ├── build/[id]/page.tsx   # Dashboard da build importada
+│   │   ├── trade-calc/page.tsx   # Calculadora de upgrades
+│   │   ├── leveling/page.tsx     # Guia de atos (v2.0)
+│   │   ├── layout.tsx
+│   │   └── page.tsx              # Home + importador
+│   ├── components/
+│   │   ├── build/item-card.tsx
+│   │   ├── ui/                   # Card, Button (estilo shadcn, sem runtime extra)
+│   │   ├── pob-import-form.tsx
+│   │   ├── recent-builds.tsx
+│   │   └── site-header.tsx
+│   ├── lib/
+│   │   ├── pob-parser.ts         # Engine Base64url → Zlib → XML → JSON
+│   │   ├── build-store.ts        # Persistência local (localStorage)
+│   │   ├── map-evaluator.ts      # Heurística de risco de mapas/tablets
+│   │   └── trade-api.ts          # Integrador Trade API (v1.5) + DPS/Orb
+│   └── types/poe2.ts             # Tipos da estrutura PoE 2 / PoB
+├── BUILDS/                       # Builds .build do usuário (dados locais)
+└── scripts/smoke-pob.ts          # Teste funcional do parser
+```
+
+## Como rodar
 
 ```bash
-# Install dependencies
 npm install
 
-# Run frontend only (Vite dev server — no Tauri)
+# Desenvolvimento
 npm run dev
 
-# Run with Tauri (full desktop app)
-npm run tauri dev
+# Build de produção
+npm run build
+
+# Teste funcional do parser PoB
+npm run test:parser
+
+# Lint
+npm run lint
 ```
 
-### Build for Production
+## Formato do código PoB
 
-```bash
-npm run tauri build
-```
+O código exportado pelo Path of Building/PoE Ninja é `base64url(zlib(xml))`. O parser:
 
-The installer will be in `src-tauri/target/release/bundle/`.
+1. Normaliza `-`/`_` → `+`/`/`, completa padding Base64;
+2. Infla via `zlib.inflateSync` (com fallback `inflateRawSync`);
+3. Converte XML → JSON com `fast-xml-parser`;
+4. Normaliza em `ParsedBuild`: metadata, stats, items (rarity/name/base/mods), skill groups (gems + suportes) e árvore passiva.
+
+Builds importadas ficam salvas apenas no `localStorage` do navegador (chave determinística FNV-1a do código — reimportar o mesmo código não duplica).
+
+## Variáveis de ambiente
+
+Copie `.env.example` para `.env.local`. Nada é obrigatório na v1.0; as chaves de Trade/Discord serão usadas nas versões futuras.
 
 ---
 
-## Project Structure
-
-```
-poe2-sync-companion/
-├── src/                          # React frontend
-│   ├── App.tsx                   # Root component & state
-│   ├── main.tsx                  # Entry point
-│   ├── components/
-│   │   ├── LoginScreen.tsx       # Auth + setup screen
-│   │   ├── Dashboard.tsx         # Main dashboard + progress bar
-│   │   └── tabs/
-│   │       ├── PassivesTab.tsx   # Passive tree diff
-│   │       ├── GemsTab.tsx       # Gem links diff
-│   │       └── StatsTab.tsx      # Attributes/resistances diff
-│   ├── lib/
-│   │   ├── buildDiff.ts          # ✨ Core diff engine
-│   │   ├── buildParser.ts        # .build file JSON parser
-│   │   ├── gggApi.ts             # GGG API + OAuth2 PKCE
-│   │   ├── mockData.ts           # Dev mock data
-│   │   └── tauriCommands.ts      # Type-safe Tauri invoke wrappers
-│   ├── i18n/
-│   │   ├── config.ts             # i18next setup
-│   │   └── locales/
-│   │       ├── pt-BR.json        # Portuguese strings
-│   │       └── en.json           # English strings
-│   ├── types/
-│   │   └── app.ts                # Global TypeScript types
-│   └── styles/
-│       └── index.css             # Global CSS + Tailwind components
-├── src-tauri/                    # Rust backend
-│   ├── src/main.rs               # Tauri commands
-│   ├── build.rs                  # Build script
-│   ├── Cargo.toml                # Rust dependencies
-│   └── tauri.conf.json           # App config & permissions
-├── tailwind.config.js            # PoE-inspired theme
-├── vite.config.ts
-└── package.json
-```
-
----
-
-## GGG API Registration
-
-To use real GGG OAuth2 authentication:
-
-1. Visit [pathofexile.com/developer/docs/authorization](https://www.pathofexile.com/developer/docs/authorization)
-2. Register your application
-3. Set the redirect URI to `http://localhost:1420/oauth/callback`
-4. Copy your **Client ID** to `.env`:
-   ```env
-   VITE_GGG_CLIENT_ID=your_client_id_here
-   ```
-
----
-
-## i18n Rules
-
-> ⚠️ **IMPORTANT**: UI strings (buttons, menus, labels) are translated.  
-> Game content (gem names, passive names, item names, modifiers) are **always in English** — never translated.  
-> This ensures compatibility with the GGG API and `.build` file formats.
-
----
-
-## License
-
-MIT © 2024 — Open Source. Contributions welcome!
+MIT © — Projeto da comunidade. Sem afiliação com Grinding Gear Games.
