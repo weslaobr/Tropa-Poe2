@@ -23,12 +23,14 @@ type XmlNode = Record<string, unknown>;
 
 const ARRAY_TAGS = new Set([
   'Item',
+  'ItemSet',
   'Skill',
   'SkillSet',
   'Gem',
   'Support',
   'PlayerStat',
   'URL',
+  'Slot',
 ]);
 
 const xmlParser = new XMLParser({
@@ -64,8 +66,14 @@ function getText(node: unknown): string | null {
   if (node === undefined || node === null) return null;
   if (typeof node === 'string') return node;
   if (typeof node !== 'object') return null;
-  const text = (node as XmlNode)['#text'] as unknown;
-  return typeof text === 'string' ? text : null;
+  const obj = node as XmlNode;
+  if (typeof obj['#text'] === 'string') return obj['#text'];
+  const keys = Object.keys(obj).filter((k) => !k.startsWith('$'));
+  for (const key of keys) {
+    const val = obj[key];
+    if (typeof val === 'string') return val;
+  }
+  return null;
 }
 
 function decodeCode(rawCode: string): string {
@@ -217,29 +225,83 @@ function parseItemText(text: string): Omit<ParsedItem, 'id'> {
 }
 
 function parseSlots(root: XmlNode): Record<string, string> {
-  const slotNodes = toArray<XmlNode>(root.Slots).flatMap((slotsNode) =>
-    toArray<XmlNode>(slotsNode.Slot),
-  );
-
   const slotById: Record<string, string> = {};
-  for (const slotNode of slotNodes) {
-    const attrs = getAttrs(slotNode);
-    const itemId = attrs.itemId;
-    const name = attrs.name;
-    if (itemId && name && !(itemId in slotById)) {
-      slotById[itemId] = name;
+
+  const slotsContainer = root.Slots;
+  if (slotsContainer) {
+    const slotGroups = toArray<XmlNode>(slotsContainer);
+    for (const group of slotGroups) {
+      const slotList = toArray<XmlNode>(group.Slot);
+      for (const slotNode of slotList) {
+        const attrs = getAttrs(slotNode);
+        const itemId = attrs.itemId;
+        const name = attrs.name;
+        if (itemId && name && !(itemId in slotById)) {
+          slotById[itemId] = name;
+        }
+      }
     }
   }
+
+  if (Object.keys(slotById).length === 0) {
+    const itemsContainer = root.Items;
+    if (itemsContainer) {
+      const containerNodes = toArray<XmlNode>(itemsContainer);
+      for (const container of containerNodes) {
+        const allItems = [
+          ...toArray<XmlNode>(container.Item),
+          ...toArray<XmlNode>(container.ItemSet).flatMap((set) =>
+            toArray<XmlNode>(set.Item),
+          ),
+        ];
+        for (const itemNode of allItems) {
+          const attrs = getAttrs(itemNode);
+          const slotName = attrs.slot;
+          if (attrs.id && slotName && !(attrs.id in slotById)) {
+            slotById[attrs.id] = slotName;
+          }
+        }
+      }
+    }
+  }
+
   return slotById;
 }
 
-function parseItems(root: XmlNode): ParsedItem[] {
-  const nodes = toArray<XmlNode>(root.Items);
-  const items = nodes.flatMap((itemsNode) => toArray<XmlNode>(itemsNode.Item));
+function extractItems(node: XmlNode): XmlNode[] {
+  const direct = toArray<XmlNode>(node.Item);
+  const sets = toArray<XmlNode>(node.ItemSet).flatMap((set) =>
+    toArray<XmlNode>(set.Item),
+  );
+  return [...direct, ...sets];
+}
 
-  return items.map((itemNode, index) => {
+function parseItems(root: XmlNode): ParsedItem[] {
+  const itemsContainer = root.Items;
+  if (!itemsContainer) return [];
+
+  const containerNodes = toArray<XmlNode>(itemsContainer);
+  let allItemNodes: XmlNode[] = [];
+
+  for (const container of containerNodes) {
+    allItemNodes.push(...extractItems(container));
+  }
+
+  if (allItemNodes.length === 0 && typeof itemsContainer === 'object') {
+    const container = itemsContainer as XmlNode;
+    for (const key of Object.keys(container)) {
+      if (key.startsWith('$') || key === '#text') continue;
+      const child = container[key];
+      if (typeof child === 'object' && child !== null) {
+        allItemNodes.push(...extractItems(child as XmlNode));
+      }
+    }
+  }
+
+  return allItemNodes.map((itemNode, index) => {
     const attrs = getAttrs(itemNode);
-    const parsed = parseItemText(getText(itemNode) ?? '');
+    const text = getText(itemNode) ?? '';
+    const parsed = parseItemText(text);
     return { id: attrs.id ?? String(index + 1), ...parsed };
   });
 }
@@ -285,9 +347,28 @@ function parseSkills(root: XmlNode): ParsedSkillGroup[] {
   if (!skillsRoot) return [];
 
   const sets = toArray<XmlNode>(skillsRoot.SkillSet);
-  const groupNodes = sets.length
-    ? sets.flatMap((set) => toArray<XmlNode>(set.Skill))
-    : toArray<XmlNode>(skillsRoot.Skill);
+  let groupNodes: XmlNode[];
+
+  if (sets.length) {
+    groupNodes = sets.flatMap((set) => toArray<XmlNode>(set.Skill));
+  } else {
+    groupNodes = toArray<XmlNode>(skillsRoot.Skill);
+  }
+
+  if (groupNodes.length === 0) {
+    for (const key of Object.keys(skillsRoot)) {
+      if (key.startsWith('$') || key === '#text') continue;
+      const child = skillsRoot[key];
+      if (typeof child === 'object' && child !== null) {
+        const childArray = toArray<XmlNode>(child);
+        for (const item of childArray) {
+          if (item.Skill || item.Gem) {
+            groupNodes.push(...toArray<XmlNode>(item.Skill));
+          }
+        }
+      }
+    }
+  }
 
   return groupNodes.map((groupNode) => {
     const attrs = getAttrs(groupNode);
